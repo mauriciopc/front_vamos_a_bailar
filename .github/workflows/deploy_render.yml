@@ -1,0 +1,17 @@
+name: Redeploy sitio en Render
+
+on:
+  workflow_dispatch:  # Permite ejecución manual desde GitHub
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    environment: front 
+
+    steps:
+      - name: Disparar redeploy en Render
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "🔄 Llamando al Deploy Hook de Render..."
+          curl -s -X GET "$RENDER_DEPLOY_HOOK" || echo "❌ Falló la llamada"
