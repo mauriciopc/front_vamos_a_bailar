@@ -30,7 +30,7 @@ function App() {
     <>
       <div className="container-header">
         <div className='header-text'>
-          <span>VAMOS A BAILAR!</span>
+          <span>VAMOS A BAILAR! :)</span>
         </div>
         <img className='banner' src="banner.png"/>
       </div>
