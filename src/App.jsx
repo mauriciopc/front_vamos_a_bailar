@@ -2,6 +2,11 @@ import { useState,useEffect} from 'react'
 import axios from 'axios';
 import './App.css'
 
+const convertirFecha = (fechaStr) => {
+  const [dia, mes, anio] = fechaStr.split("/").map(Number);
+  return new Date(anio, mes - 1, dia);
+};
+
 function App() {
   const [listaEventos, setListaEventos] = useState([]);
 
@@ -17,7 +22,17 @@ function App() {
             })
           })
          }
-         setListaEventos(listaEventosAux);
+
+        if (listaEventosAux && listaEventosAux.length > 0) {
+          const listEventosOrdenados = [...listaEventosAux].sort((a, b) => {
+            const fechaA = convertirFecha(a.fecha_f);
+            const fechaB = convertirFecha(b.fecha_f);
+            return fechaA - fechaB; // Orden ascendente
+          });
+
+          setListaEventos(listEventosOrdenados);
+        }
+
       } catch (err) {
         console.error('Error al obtener los datos', err);
       }
