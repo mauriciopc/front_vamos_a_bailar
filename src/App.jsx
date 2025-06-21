@@ -49,6 +49,7 @@ function App() {
         </div>
         <img className='banner' src="banner.jpg"/>
       </div>
+
       <div className="main-body">
         <div className='container'>
           {listaEventos &&
@@ -69,6 +70,16 @@ function App() {
           }
           
         </div>
+      </div>
+      <div className="footer">
+        <p>Próximamente...</p>
+        <br />
+        <img src="dance_spot.png" alt="dace_spot" width={200}/>
+        <p>DANCE SPOT</p>
+        <br />
+        <span>Encuentra más eventos y clases de baile</span>
+        <br />
+        <img src="google_play.svg" alt="google_play" width={200}/>
       </div>
     </>
   )
