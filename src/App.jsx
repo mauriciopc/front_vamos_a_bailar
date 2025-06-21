@@ -47,7 +47,7 @@ function App() {
         <div className='header-text'>
           <span>VAMOS A BAILAR!</span>
         </div>
-        <img className='banner' src="banner.png"/>
+        <img className='banner' src="banner.jpg"/>
       </div>
       <div className="main-body">
         <div className='container'>
