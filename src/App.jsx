@@ -72,14 +72,14 @@ function App() {
         </div>
       </div>
       <div className="footer">
-        <p>Próximamente...</p>
+        <p>Encuentra más eventos y clases de baile en:</p>
         <br />
         <img src="dance_spot.png" alt="dace_spot" width={200}/>
         <p>DANCE SPOT</p>
         <br />
-        <span>Encuentra más eventos y clases de baile</span>
-        <br />
-        <img src="google_play.svg" alt="google_play" width={200}/>
+        <a href="https://play.google.com/store/apps/details?id=com.jorssmx.dancespot">
+          <img src="google_play.svg" alt="google_play" width={200}/>
+        </a>
       </div>
     </>
   )
