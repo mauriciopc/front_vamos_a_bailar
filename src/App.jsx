@@ -14,7 +14,7 @@ function App() {
     const listaEventosAux = [];
     const obtenerDatos = async () => {
       try {
-        const res = await axios.get('https://api-vamos-a-bailar.onrender.com/api/obtieneEventos');
+        const res = await axios.get('https://v53e853z8a.execute-api.us-east-2.amazonaws.com/eventos');
         if(res.data) {
           res.data.map(pagina => {
             pagina['eventos'].map(evento => {
