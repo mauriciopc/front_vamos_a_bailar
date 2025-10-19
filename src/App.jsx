@@ -7,6 +7,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Eventos />} />
       <Route path="/spoti" element={<SpotiList />} />
+      <Route path="/*" element={<Eventos />} />
     </Routes>
   )
 }

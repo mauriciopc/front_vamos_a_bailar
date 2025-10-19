@@ -1,6 +1,5 @@
 import { useState,useEffect} from 'react'
 import axios from 'axios';
-import './App.css'
 
 const convertirFecha = (fechaStr) => {
   const [dia, mes, anio] = fechaStr.split("/").map(Number);
