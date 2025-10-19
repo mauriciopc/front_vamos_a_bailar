@@ -1,5 +1,7 @@
 import { useState,useEffect} from 'react'
 import axios from 'axios';
+import './App.css'
+
 
 const convertirFecha = (fechaStr) => {
   const [dia, mes, anio] = fechaStr.split("/").map(Number);
@@ -41,7 +43,7 @@ function App() {
   }, []);
 
   return (
-    <>
+    <div className='primary-container'>
       <div className="container-header">
         <div className='header-text'>
           <span>VAMOS A BAILAR!</span>
@@ -80,7 +82,7 @@ function App() {
           <img src="google_play.svg" alt="google_play" width={200}/>
         </a>
       </div>
-    </>
+    </div>
   )
 }
 
