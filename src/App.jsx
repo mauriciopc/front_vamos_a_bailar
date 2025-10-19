@@ -1,87 +1,13 @@
-import { useState,useEffect} from 'react'
-import axios from 'axios';
-import './App.css'
-
-const convertirFecha = (fechaStr) => {
-  const [dia, mes, anio] = fechaStr.split("/").map(Number);
-  return new Date(anio, mes - 1, dia);
-};
+import { Routes, Route } from 'react-router-dom'
+import Eventos from './Eventos.jsx'
+import SpotiList from './SpotiList.jsx';
 
 function App() {
-  const [listaEventos, setListaEventos] = useState([]);
-
-  useEffect(() => {
-    const listaEventosAux = [];
-    const obtenerDatos = async () => {
-      try {
-        const res = await axios.get('https://v53e853z8a.execute-api.us-east-2.amazonaws.com/eventos');
-        if(res.data) {
-          res.data.map(pagina => {
-            pagina['eventos'].map(evento => {
-              listaEventosAux.push(evento);
-            })
-          })
-         }
-
-        if (listaEventosAux && listaEventosAux.length > 0) {
-          const listEventosOrdenados = [...listaEventosAux].sort((a, b) => {
-            const fechaA = convertirFecha(a.fecha_f);
-            const fechaB = convertirFecha(b.fecha_f);
-            return fechaA - fechaB; // Orden ascendente
-          });
-
-          setListaEventos(listEventosOrdenados);
-        }
-
-      } catch (err) {
-        console.error('Error al obtener los datos', err);
-      }
-    };
-
-    obtenerDatos();
-  }, []);
-
   return (
-    <>
-      <div className="container-header">
-        <div className='header-text'>
-          <span>VAMOS A BAILAR!</span>
-        </div>
-        <img className='banner' src="banner.jpg"/>
-      </div>
-
-      <div className="main-body">
-        <div className='container'>
-          {listaEventos &&
-            listaEventos.map(evento => (
-              <div className='card-img'>
-                <img src={evento.img} alt="evento" />
-                <div className="img-info">
-                  <div className='img-info_container'>
-                    <h1>{evento.titulo}</h1>
-                    <h2>{evento.fecha}</h2>
-                    <a href={evento.link} target='_blank'>
-                      <h3>Entrar al evento</h3>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            ))
-          }
-          
-        </div>
-      </div>
-      <div className="footer">
-        <p>Encuentra más eventos y clases de baile en:</p>
-        <br />
-        <img src="dance_spot.png" alt="dace_spot" width={200}/>
-        <p>DANCE SPOT</p>
-        <br />
-        <a href="https://play.google.com/store/apps/details?id=com.jorssmx.dancespot">
-          <img src="google_play.svg" alt="google_play" width={200}/>
-        </a>
-      </div>
-    </>
+    <Routes>
+      <Route path="/" element={<Eventos />} />
+      <Route path="/spoti" element={<SpotiList />} />
+    </Routes>
   )
 }
 
