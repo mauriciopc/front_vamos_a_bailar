@@ -80,7 +80,7 @@ function App() {
     const regenerateQueueRef = useRef(null);
     const nextListIndex = useRef(0); // 0=list-1, 1=list-2, 2=list-3
 
-    // Set para rastrear canciones ya encoladas y evitar duplicados
+    // Set para rastrear canciones ya encoladas y evitar duplicados (por URI)
     const queuedSongs = useRef(new Set());
 
     // Actualizar ref cuando cambia el estado
@@ -150,11 +150,19 @@ function App() {
             setAccessToken(null);
             return;
         }
-        const res = await fetch(`https://api.spotify.com/${endpoint}`, {
+
+        const fetchOptions = {
             headers: { 'Authorization': `Bearer ${currentToken}` },
-            method,
-            body: JSON.stringify(body)
-        });
+            method
+        };
+
+        // Solo agregar body si existe y no es undefined
+        if (body !== undefined) {
+            fetchOptions.body = JSON.stringify(body);
+        }
+
+        const res = await fetch(`https://api.spotify.com/${endpoint}`, fetchOptions);
+
         if (res.ok) {
             // Manejar 204 No Content explícitamente
             if (res.status === 204) return null;
@@ -218,38 +226,29 @@ function App() {
 
                 if (list && list.length > 0 && list[0]) {
                     const nextSong = list[0];
-                    const uniqueId = `${listId}-${nextSong.id}`;
 
-                    // Verificar si ya está encolada para evitar duplicados
-                    if (!queuedSongs.current.has(uniqueId)) {
+                    // Usar URI como identificador único para evitar duplicados reales en Spotify
+                    if (!queuedSongs.current.has(nextSong.uri)) {
                         console.log(`✅ Agregando a cola: ${nextSong.name} de ${listId}`);
                         await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
 
-                        // Marcar como encolada
-                        queuedSongs.current.add(uniqueId);
+                        // Marcar como encolada usando URI
+                        queuedSongs.current.add(nextSong.uri);
                         foundSong = true;
                     } else {
-                        console.log(`⚠️ ${nextSong.name} ya fue enviada a la cola. Esperando que se reproduzca.`);
-                        // Si ya está encolada, consideramos que "encontramos" canción para no saltar turno innecesariamente,
-                        // o podríamos saltar turno? Mejor NO saltar turno, esperar a que se reproduzca.
-                        // Pero si devolvemos true, el bucle termina.
-                        foundSong = true;
+                        console.log(`⚠️ ${nextSong.name} ya está en la cola de Spotify. Saltando.`);
+                        // Saltar a la siguiente lista si esta canción ya está encolada
                     }
                 } else {
                     console.log(`⚠️ ${listId} vacía.`);
                 }
 
                 // Avanzar turno SIEMPRE (para mantener el round robin)
-                // NOTA: Si encontramos una canción (ya sea nueva o ya encolada), avanzamos el turno para la PRÓXIMA vez.
-                // Pero si ya estaba encolada, no queremos avanzar el turno "real" de reproducción, 
-                // queremos que esa canción suene.
-                // Sin embargo, `nextListIndex` indica DE DÓNDE sacar la SIGUIENTE canción.
-                // Si sacamos una de L1, el siguiente debe ser L2.
                 nextListIndex.current = (currentIndex + 1) % 3;
                 attempts++;
             }
 
-            if (!foundSong) console.log('⚠️ Todas las listas vacías o ya encoladas.');
+            if (!foundSong) console.log('⚠️ Todas las canciones ya están encoladas o listas vacías.');
 
         } catch (error) {
             console.error('❌ Error agregando a cola:', error);
@@ -284,9 +283,8 @@ function App() {
                         for (const listId in newLists) {
                             const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
                             if (index > -1) {
-                                // Eliminar del Set de encoladas también
-                                const song = newLists[listId][index];
-                                queuedSongs.current.delete(`${listId}-${song.id}`);
+                                // Eliminar del Set de encoladas también (usando URI)
+                                queuedSongs.current.delete(currentTrackUri);
 
                                 newLists[listId].splice(index, 1);
                                 changed = true;
