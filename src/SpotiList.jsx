@@ -56,7 +56,7 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
             });
             return () => sortable.destroy();
         }
-    }, [onSort]);
+    }, [onSort, songs]); // Agregamos songs para asegurar reinicialización si cambia la lista
 
     const listKey = songs.map(s => s.id).join(',');
 
@@ -378,24 +378,21 @@ function App() {
     };
 
     const handleSort = async ({ fromListId, toListId, oldIndex, newIndex }) => {
-        let newLists = {};
-        setSongLists(currentLists => {
-            if (!currentLists[fromListId] || !currentLists[toListId]) {
-                return currentLists;
-            }
-            newLists = JSON.parse(JSON.stringify(currentLists));
-            const sourceList = newLists[fromListId];
-            const destList = newLists[toListId];
+        const currentLists = songLists;
+        if (!currentLists[fromListId] || !currentLists[toListId]) return;
 
-            if (!sourceList || !destList) return currentLists;
-            if (oldIndex < 0 || oldIndex >= sourceList.length) return currentLists;
+        const newLists = JSON.parse(JSON.stringify(currentLists));
+        const sourceList = newLists[fromListId];
+        const destList = newLists[toListId];
 
-            const [movedItem] = sourceList.splice(oldIndex, 1);
-            destList.splice(newIndex, 0, movedItem);
-            return newLists;
-        });
+        if (!sourceList || !destList) return;
+        if (oldIndex < 0 || oldIndex >= sourceList.length) return;
 
-        // Regenerar la cola después de mover
+        const [movedItem] = sourceList.splice(oldIndex, 1);
+        destList.splice(newIndex, 0, movedItem);
+
+        setSongLists(newLists);
+
         if (isPlayingFromApp.current) {
             try {
                 await regenerateQueue(newLists);
