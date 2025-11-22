@@ -417,29 +417,14 @@ function App() {
                 return;
             }
 
-            // Calcular las listas actualizadas ANTES de setSongLists
+            // Agregar canción a la lista local
             const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
-            const updatedLists = {
+            setSongLists({
                 ...songLists,
                 [listId]: [...songLists[listId], newTrack]
-            };
+            });
 
-
-
-            // Actualizar la cola de Spotify
-            console.log('🔄 Iniciando actualización de cola en Spotify...');
-
-            try {
-                await regenerateQueue(updatedLists);
-                console.log('✅ Proceso de actualización completado');
-            } catch (e) {
-                console.error("❌ Error al actualizar cola de Spotify:", e);
-            }
-
-            console.log('📝 Canción agregada a la lista local');
-
-            // Actualizar estado local
-            setSongLists(updatedLists);
+            console.log('📝 Canción agregada a la lista local. La cola se actualizará cuando la canción actual termine.');
         }
         setSearchQuery('');
         setSearchResults([]);
@@ -478,14 +463,7 @@ function App() {
         destList.splice(newIndex, 0, movedItem);
 
         setSongLists(newLists);
-
-        // Regenerar la cola
-        try {
-            await regenerateQueue(newLists);
-            console.log('✅ Orden actualizado y cola sincronizada');
-        } catch (e) {
-            console.error("Error al regenerar la cola después de ordenar:", e);
-        }
+        console.log('📝 Orden actualizado en listas locales. La cola se actualizará cuando la canción actual termine.');
     };
 
     const handleRemove = useCallback((listId, trackId) => {
