@@ -177,7 +177,7 @@ function App() {
     useEffect(() => {
         const savedLists = localStorage.getItem('spotify_song_lists');
         if (savedLists) {
-            setSong Lists(JSON.parse(savedLists));
+            setSongLists(JSON.parse(savedLists));
         }
         const handleAuth = async () => {
             const params = new URLSearchParams(window.location.search);
