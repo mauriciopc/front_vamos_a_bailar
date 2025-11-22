@@ -222,6 +222,62 @@ function App() {
 
     const stopPlaybackTracker = useCallback(() => {
         clearInterval(playbackIntervalId.current);
+        playbackIntervalId.current = null;
+        isPlayingFromApp.current = false;
+        lastTrackUri.current = null;
+    }, []);
+
+    const addNextSongToQueue = useCallback(async () => {
+        try {
+            // USAR REF PARA OBTENER ESTADO ACTUAL
+            const currentLists = songListsRef.current;
+            const listOrder = ['list-1', 'list-2', 'list-3'];
+
+            let foundSong = false;
+            let attempts = 0;
+
+            // Empezamos a buscar desde la lista que toca (nextListIndex)
+            // Hacemos máximo 3 intentos para recorrer todas las listas si alguna está vacía
+            while (!foundSong && attempts < 3) {
+                const currentIndex = nextListIndex.current; // 0, 1, o 2
+                const listId = listOrder[currentIndex];
+                const list = currentLists[listId];
+
+                console.log(`🔍 Turno de: ${listId} (índice ${currentIndex}). Canciones disponibles: ${list?.length || 0}`);
+
+                if (list && list.length > 0 && list[0]) {
+                    // SI HAY CANCIÓN en la lista que toca:
+                    const nextSong = list[0];
+                    console.log(`✅ ENCONTRADA: ${nextSong.name} de ${listId}. Agregando a cola...`);
+
+                    await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
+
+                    foundSong = true;
+                } else {
+                    console.log(`⚠️ ${listId} está vacía. Saltando turno.`);
+                }
+
+                // SIEMPRE avanzamos el índice para el siguiente turno, 
+                // ya sea que hayamos agregado canción o que la lista estuviera vacía.
+                // Esto mantiene el orden 1 -> 2 -> 3 -> 1 ...
+                nextListIndex.current = (currentIndex + 1) % 3;
+                attempts++;
+            }
+
+            if (!foundSong) {
+                console.log('⚠️ No hay más canciones en ninguna lista (todas vacías)');
+            } else {
+                console.log(`📌 Siguiente turno será para: ${listOrder[nextListIndex.current]}`);
+            }
+
+        } catch (error) {
+            console.error('❌ Error agregando siguiente canción:', error);
+        }
+    }, [fetchWebApi]);
+
+    // Guardamos la referencia actualizada
+    useEffect(() => {
+        regenerateQueueRef.current = addNextSongToQueue;
     }, [addNextSongToQueue]);
 
     const startPlaybackTracker = useCallback(() => {
@@ -238,11 +294,6 @@ function App() {
                 if (lastTrackUri.current && currentTrackUri !== lastTrackUri.current) {
 
                     // Actualizar listas eliminando la canción que acaba de terminar (la anterior)
-                    // NOTA: Como no sabemos cuál era la anterior con certeza solo con URI si hay repetidas,
-                    // asumimos que debemos eliminar la canción que estaba al principio de la lista que tocaba.
-                    // PERO, para simplificar y ser robustos:
-                    // Buscamos la canción QUE ACABA DE EMPEZAR en las listas y la eliminamos para que no se repita
-
                     let updatedLists = null;
 
                     setSongLists(lists => {
