@@ -177,7 +177,7 @@ function App() {
     useEffect(() => {
         const savedLists = localStorage.getItem('spotify_song_lists');
         if (savedLists) {
-            setSongLists(JSON.parse(savedLists));
+            setSong Lists(JSON.parse(savedLists));
         }
         const handleAuth = async () => {
             const params = new URLSearchParams(window.location.search);
@@ -342,7 +342,7 @@ function App() {
         reconnect();
     }, [accessToken, fetchWebApi, startPlaybackTracker]);
 
-    // Guardar listas en localStorage cuando cambien
+    // Guardar listas en local Storage cuando cambien
     useEffect(() => {
         localStorage.setItem('spotify_song_lists', JSON.stringify(songLists));
     }, [songLists]);
@@ -366,34 +366,36 @@ function App() {
         if (['1', '2', '3'].includes(listNumber)) {
             const listId = `list-${listNumber}`;
 
-            let updatedLists = {};
-            let added = false;
-
             console.log('🎵 Intentando agregar canción:', track.name);
 
+            // Verificar si la canción ya existe en la lista
+            if (songLists[listId].some(t => t.id === track.id)) {
+                alert('Esa canción ya está en la lista.');
+                setSearchQuery('');
+                setSearchResults([]);
+                return;
+            }
+
+            // Calcular las listas actualizadas ANTES de setSongLists
+            const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
+            const updatedLists = {
+                ...songLists,
+                [listId]: [...songLists[listId], newTrack]
+            };
+
+            console.log('📝 Canción agregada a la lista local');
+
             // Actualizar estado local
-            setSongLists(lists => {
-                if (lists[listId].some(t => t.id === track.id)) {
-                    alert('Esa canción ya está en la lista.');
-                    return lists;
-                }
-                const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
-                updatedLists = { ...lists, [listId]: [...lists[listId], newTrack] };
-                added = true;
-                console.log('📝 Canción agregada a la lista local');
-                return updatedLists;
-            });
+            setSongLists(updatedLists);
 
-            // Si se agregó correctamente, actualizar la cola de Spotify
-            if (added) {
-                console.log('🔄 Iniciando actualización de cola en Spotify...');
+            // Actualizar la cola de Spotify
+            console.log('🔄 Iniciando actualización de cola en Spotify...');
 
-                try {
-                    await regenerateQueue(updatedLists);
-                    console.log('✅ Proceso de actualización completado');
-                } catch (e) {
-                    console.error("❌ Error al actualizar cola de Spotify:", e);
-                }
+            try {
+                await regenerateQueue(updatedLists);
+                console.log('✅ Proceso de actualización completado');
+            } catch (e) {
+                console.error("❌ Error al actualizar cola de Spotify:", e);
             }
         }
         setSearchQuery('');
