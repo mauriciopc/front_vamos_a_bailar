@@ -1,250 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-
-// --- Componente de Estilos ---
-// Inyectamos el CSS directamente en el componente para evitar la necesidad de un archivo .css separado.
-const GlobalStyles = () => (
-    <style>{`
-        /* Estilos generales y de cuerpo */
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-              'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-              sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            background-color: #111827; /* bg-gray-900 */
-            color: white;
-        }
-
-        .app-wrapper {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 1rem;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 64rem; /* max-w-5xl */
-            margin: 0 auto;
-        }
-
-        /* Contenedor de inicio de sesión */
-        .login-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            text-align: center;
-        }
-
-        .login-container h1 {
-            font-size: 2.25rem; /* text-4xl */
-            font-weight: 700; /* font-bold */
-            margin-bottom: 1rem; /* mb-4 */
-        }
-
-        .login-container p {
-            color: #9ca3af; /* text-gray-400 */
-            margin-bottom: 2rem; /* mb-8 */
-        }
-
-        .login-button {
-            background-color: #1DB954;
-            color: white;
-            font-weight: 700;
-            padding: 0.75rem 2rem; /* py-3 px-8 */
-            border-radius: 9999px; /* rounded-full */
-            font-size: 1.125rem; /* text-lg */
-            border: none;
-            cursor: pointer;
-            transition-property: background-color;
-            transition-duration: 300ms;
-        }
-
-        .login-button:hover {
-            background-color: #1ED760;
-        }
-
-        /* Contenedor "Reproduciendo ahora" */
-        .now-playing-container {
-            background-color: #1f2937; /* bg-gray-800 */
-            padding: 1rem;
-            border-radius: 0.5rem; /* rounded-lg */
-            margin-bottom: 1.5rem; /* mb-6 */
-            text-align: center;
-        }
-
-        .now-playing-container h2 {
-            font-size: 1.125rem; /* text-lg */
-            font-weight: 600; /* font-semibold */
-        }
-
-        .now-playing-details {
-            margin-top: 0.5rem; /* mt-2 */
-            color: #d1d5db; /* text-gray-300 */
-        }
-
-        .now-playing-name {
-            font-weight: 700;
-        }
-
-        .now-playing-artist {
-            font-size: 0.875rem; /* text-sm */
-        }
-
-        /* Contenedor de Búsqueda */
-        .search-container {
-            margin-bottom: 1.5rem; /* mb-6 */
-            position: relative;
-        }
-
-        .search-container input {
-            width: 100%;
-            background-color: #374151; /* bg-gray-700 */
-            color: white;
-            border-radius: 9999px; /* rounded-full */
-            padding: 0.75rem 1.5rem; /* py-3 px-6 */
-            border: 2px solid transparent;
-            box-sizing: border-box;
-        }
-
-        .search-container input:focus {
-            outline: none;
-            border-color: #1DB954;
-        }
-
-        .search-results {
-            position: absolute;
-            z-index: 10;
-            width: 100%;
-            margin-top: 0.25rem; /* mt-1 */
-            background-color: #1f2937; /* bg-gray-800 */
-            border-radius: 0.5rem; /* rounded-lg */
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-            max-height: 15rem; /* max-h-60 */
-            overflow-y: auto;
-        }
-
-        .search-result-item {
-            padding: 0.75rem;
-            cursor: pointer;
-        }
-
-        .search-result-item:hover {
-            background-color: #374151; /* bg-gray-700 */
-        }
-
-        /* Grid de Listas */
-        .lists-grid {
-            display: grid;
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-            gap: 1.5rem; /* gap-6 */
-        }
-
-        @media (min-width: 768px) {
-            .lists-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-        }
-
-        /* Contenedor de cada lista */
-        .list-container {
-            background-color: #1f2937; /* bg-gray-800 */
-            padding: 1rem;
-            border-radius: 0.5rem; /* rounded-lg */
-        }
-
-        .list-container h3 {
-            font-weight: 700;
-            font-size: 1.25rem; /* text-xl */
-            margin-bottom: 1rem; /* mb-4 */
-        }
-
-        .song-list {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem; /* space-y-2 */
-            min-height: 200px;
-        }
-
-        /* Elemento de canción */
-        .song-item {
-            background-color: #374151; /* bg-gray-700 */
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: grab;
-        }
-
-        .song-info {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .song-name {
-            font-weight: 500; /* font-medium */
-            font-size: 0.875rem; /* text-sm */
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .song-artist {
-            font-size: 0.75rem; /* text-xs */
-            color: #9ca3af; /* text-gray-400 */
-        }
-
-        .remove-button {
-            color: #ef4444; /* text-red-500 */
-            font-weight: 700;
-            font-size: 1.25rem; /* text-xl */
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0 0.5rem;
-        }
-
-        .remove-button:hover {
-            color: #f87171; /* text-red-400 */
-        }
-
-        /* Estilo para arrastrar y soltar */
-        .song-item-ghost {
-            opacity: 0.4;
-            background: #4a5568;
-        }
-
-        /* Botón de Reproducir */
-        .play-button-container {
-            margin-top: 1.5rem; /* mt-6 */
-            text-align: center;
-        }
-
-        .play-button {
-            background-color: #2563eb; /* bg-blue-600 */
-            color: white;
-            font-weight: 700;
-            padding: 0.75rem 2rem; /* py-3 px-8 */
-            border-radius: 9999px; /* rounded-full */
-            font-size: 1.125rem; /* text-lg */
-            border: none;
-            cursor: pointer;
-            transition-property: background-color;
-            transition-duration: 300ms;
-        }
-
-        .play-button:hover {
-            background-color: #1d4ed8; /* bg-blue-700 */
-        }
-    `}</style>
-);
-
+import './SpotiList.css';
 
 // --- CONFIGURACIÓN ---
 // ¡IMPORTANTE! Reemplaza esto con tu Client ID de Spotify.
@@ -291,10 +46,10 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
             <h3>{listTitle}</h3>
             <div id={listId} ref={sortableRef} className="song-list">
                 {songs.map(track => (
-                    <SongItem 
-                        key={track.id} 
-                        track={track} 
-                        listId={listId} 
+                    <SongItem
+                        key={track.id}
+                        track={track}
+                        listId={listId}
                         onRemove={onRemove}
                     />
                 ))}
@@ -320,8 +75,8 @@ function App() {
     const fetchWebApi = useCallback(async (endpoint, method, body) => {
         const currentToken = await getValidToken();
         if (!currentToken) {
-             setAccessToken(null);
-             return;
+            setAccessToken(null);
+            return;
         }
         const res = await fetch(`https://api.spotify.com/${endpoint}`, {
             headers: { 'Authorization': `Bearer ${currentToken}` },
@@ -483,8 +238,8 @@ function App() {
             try {
                 const state = await fetchWebApi('v1/me/player', 'GET');
                 if (state && state.is_playing && state.item) {
-                     isPlayingFromApp.current = true;
-                     startPlaybackTracker();
+                    isPlayingFromApp.current = true;
+                    startPlaybackTracker();
                 }
             } catch (error) {
                 console.warn("No se pudo reconectar.", error);
@@ -518,7 +273,7 @@ function App() {
             }
         }, 1500);
     }, [fetchWebApi, songLists, stopPlaybackTracker]);
-    
+
     useEffect(() => {
         localStorage.setItem('spotify_song_lists', JSON.stringify(songLists));
         updateQueue();
@@ -554,7 +309,7 @@ function App() {
         setSearchQuery('');
         setSearchResults([]);
     };
-    
+
     const handlePlayMix = async () => {
         const list1 = songLists['list-1'] || [];
         const list2 = songLists['list-2'] || [];
@@ -595,7 +350,6 @@ function App() {
     if (!accessToken) {
         return (
             <div className="login-container">
-                <GlobalStyles />
                 <h1>Mi Reproductor Spotify</h1>
                 <p>Inicia sesión con tu cuenta de Spotify para comenzar.</p>
                 <button onClick={redirectToLogin} className="login-button">
@@ -607,7 +361,6 @@ function App() {
 
     return (
         <div className="app-wrapper">
-            <GlobalStyles />
             <div className="app-container">
                 <div className="now-playing-container">
                     <h2>Reproduciendo ahora</h2>
@@ -642,7 +395,7 @@ function App() {
                     <SongList listId="list-2" songs={songLists['list-2']} onSort={handleSort} onRemove={handleRemove} />
                     <SongList listId="list-3" songs={songLists['list-3']} onSort={handleSort} onRemove={handleRemove} />
                 </div>
-                
+
                 <div className="play-button-container">
                     <button onClick={handlePlayMix} className="play-button">
                         Reproducir Mezcla
