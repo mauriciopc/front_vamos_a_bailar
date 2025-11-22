@@ -222,47 +222,6 @@ function App() {
 
     const stopPlaybackTracker = useCallback(() => {
         clearInterval(playbackIntervalId.current);
-        playbackIntervalId.current = null;
-        isPlayingFromApp.current = false;
-        lastTrackUri.current = null;
-    }, []);
-
-    const addNextSongToQueue = useCallback(async () => {
-        try {
-            // USAR REF PARA OBTENER ESTADO ACTUAL
-            const currentLists = songListsRef.current;
-            const listOrder = ['list-1', 'list-2', 'list-3'];
-
-            console.log('🔔 Buscando siguiente canción. Índice actual:', nextListIndex.current);
-
-            // Intentar encontrar la siguiente canción en las próximas 3 listas
-            for (let attempt = 0; attempt < 3; attempt++) {
-                const currentIndex = (nextListIndex.current + attempt) % 3;
-                const listId = listOrder[currentIndex];
-                const list = currentLists[listId];
-
-                if (list && list.length > 0 && list[0]) {
-                    // Agregar la primera canción de esta lista
-                    const nextSong = list[0];
-                    console.log(`✅ Agregando siguiente: ${nextSong.name} de ${listId} (URI: ${nextSong.uri})`);
-
-                    await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
-
-                    // Actualizar índice para la próxima vez
-                    nextListIndex.current = (currentIndex + 1) % 3;
-                    return;
-                }
-            }
-
-            console.log('⚠️ No hay más canciones en ninguna lista');
-        } catch (error) {
-            console.error('❌ Error agregando siguiente canción:', error);
-        }
-    }, [fetchWebApi]); // No depende de songLists porque usa el Ref
-
-    // Guardamos la referencia actualizada
-    useEffect(() => {
-        regenerateQueueRef.current = addNextSongToQueue;
     }, [addNextSongToQueue]);
 
     const startPlaybackTracker = useCallback(() => {
