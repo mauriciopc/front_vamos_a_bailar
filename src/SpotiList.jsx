@@ -70,7 +70,6 @@ function App() {
     const [searchQuery, setSearchQuery] = useState('');
 
     const playbackIntervalId = useRef(null);
-    const updateQueueTimeout = useRef(null);
     const lastTrackUri = useRef(null);
     const isPlayingFromApp = useRef(false);
 
@@ -250,36 +249,10 @@ function App() {
         reconnect();
     }, [accessToken, fetchWebApi, startPlaybackTracker]);
 
-    const updateQueue = useCallback(() => {
-        if (!isPlayingFromApp.current) return;
-        clearTimeout(updateQueueTimeout.current);
-        updateQueueTimeout.current = setTimeout(async () => {
-            try {
-                const state = await fetchWebApi('v1/me/player', 'GET');
-                if (!state || !state.item) { stopPlaybackTracker(); return; }
-                const list1 = songLists['list-1'] || [];
-                const list2 = songLists['list-2'] || [];
-                const list3 = songLists['list-3'] || [];
-                const maxLength = Math.max(list1.length, list2.length, list3.length);
-                const newQueue = [];
-                for (let i = 0; i < maxLength; i++) {
-                    if (list1[i]) newQueue.push(list1[i].uri);
-                    if (list2[i]) newQueue.push(list2[i].uri);
-                    if (list3[i]) newQueue.push(list3[i].uri);
-                }
-                if (newQueue.length === 0) return;
-                const finalQueue = [state.item.uri, ...newQueue];
-                await fetchWebApi('v1/me/player/play', 'PUT', { uris: finalQueue, offset: { position: 0 }, position_ms: state.progress_ms });
-            } catch (error) {
-                console.error("Error al actualizar la cola:", error);
-            }
-        }, 1500);
-    }, [fetchWebApi, songLists, stopPlaybackTracker]);
-
+    // Guardar listas en localStorage cuando cambien
     useEffect(() => {
         localStorage.setItem('spotify_song_lists', JSON.stringify(songLists));
-        updateQueue();
-    }, [songLists, updateQueue]);
+    }, [songLists]);
 
     const handleSearch = useCallback(async (query) => {
         setSearchQuery(query);
@@ -295,10 +268,12 @@ function App() {
         }
     }, [fetchWebApi]);
 
-    const addSongToList = (track) => {
+    const addSongToList = async (track) => {
         const listNumber = prompt(`¿A qué lista quieres agregar "${track.name}"?\n(1, 2, o 3)`);
         if (['1', '2', '3'].includes(listNumber)) {
             const listId = `list-${listNumber}`;
+
+            // Actualizar estado local
             setSongLists(lists => {
                 if (lists[listId].some(t => t.id === track.id)) {
                     alert('Esa canción ya está en la lista.');
@@ -307,6 +282,20 @@ function App() {
                 const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
                 return { ...lists, [listId]: [...lists[listId], newTrack] };
             });
+
+            // Lógica de reproducción sin cortes
+            if (isPlayingFromApp.current) {
+                try {
+                    // Si ya está reproduciendo, solo agregamos a la cola de Spotify
+                    await fetchWebApi(`v1/me/player/queue?uri=${track.uri}`, 'POST');
+                    console.log('Canción agregada a la cola sin cortes.');
+                } catch (error) {
+                    console.error('Error al agregar a la cola:', error);
+                }
+            } else {
+                // Si no está reproduciendo, iniciamos la mezcla (con un pequeño delay para asegurar que el estado se actualice)
+                setTimeout(() => handlePlayMix(), 500);
+            }
         }
         setSearchQuery('');
         setSearchResults([]);
