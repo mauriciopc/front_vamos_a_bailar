@@ -383,10 +383,7 @@ function App() {
                 [listId]: [...songLists[listId], newTrack]
             };
 
-            console.log('📝 Canción agregada a la lista local');
 
-            // Actualizar estado local
-            setSongLists(updatedLists);
 
             // Actualizar la cola de Spotify
             console.log('🔄 Iniciando actualización de cola en Spotify...');
@@ -397,6 +394,11 @@ function App() {
             } catch (e) {
                 console.error("❌ Error al actualizar cola de Spotify:", e);
             }
+
+            console.log('📝 Canción agregada a la lista local');
+
+            // Actualizar estado local
+            setSongLists(updatedLists);
         }
         setSearchQuery('');
         setSearchResults([]);
