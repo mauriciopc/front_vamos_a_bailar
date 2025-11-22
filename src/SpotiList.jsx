@@ -2,11 +2,25 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './SpotiList.css';
 
 // --- CONFIGURACIÓN ---
-// ¡IMPORTANTE! Reemplaza esto con tu Client ID de Spotify.
 const clientId = "fb8cef2d33f04f929c1f1361aa9a30d9";
 const redirectUri = window.location.origin + window.location.pathname;
 
-// --- Componente SongItem (para la lista) ---
+// --- Helpers ---
+const getRoundRobinQueue = (lists) => {
+    const list1 = lists['list-1'] || [];
+    const list2 = lists['list-2'] || [];
+    const list3 = lists['list-3'] || [];
+    const maxLength = Math.max(list1.length, list2.length, list3.length);
+    const mixedQueue = [];
+    for (let i = 0; i < maxLength; i++) {
+        if (list1[i]) mixedQueue.push(list1[i].uri);
+        if (list2[i]) mixedQueue.push(list2[i].uri);
+        if (list3[i]) mixedQueue.push(list3[i].uri);
+    }
+    return mixedQueue;
+};
+
+// --- Componente SongItem ---
 const SongItem = ({ track, listId, onRemove }) => (
     <div className="song-item" data-track-id={track.id}>
         <div className="song-info">
@@ -17,7 +31,7 @@ const SongItem = ({ track, listId, onRemove }) => (
     </div>
 );
 
-// --- Componente SongList (Columna de la lista) ---
+// --- Componente SongList ---
 const SongList = ({ listId, songs, onSort, onRemove }) => {
     const listTitle = `Lista ${listId.split('-')[1]}`;
     const sortableRef = useRef(null);
@@ -44,8 +58,6 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
         }
     }, [onSort]);
 
-    // Generamos una key única basada en el contenido de la lista para forzar a React
-    // a recrear el contenedor si cambia, evitando conflictos con SortableJS.
     const listKey = songs.map(s => s.id).join(',');
 
     return (
@@ -66,7 +78,7 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
 };
 
 
-// --- Componente Principal de la App ---
+// --- Componente Principal ---
 function App() {
     const [accessToken, setAccessToken] = useState(localStorage.getItem('spotify_access_token'));
     const [songLists, setSongLists] = useState({ 'list-1': [], 'list-2': [], 'list-3': [] });
@@ -211,14 +223,17 @@ function App() {
             try {
                 const state = await fetchWebApi('v1/me/player', 'GET');
                 if (!state || !state.is_playing) { stopPlaybackTracker(); return; }
+
                 const currentTrackUri = state.item.uri;
-                if (currentTrackUri !== lastTrackUri.current) {
-                    setNowPlaying({ name: state.item.name, artist: state.item.artists.map(a => a.name).join(', ') });
+                setNowPlaying({ name: state.item.name, artist: state.item.artists.map(a => a.name).join(', ') });
+
+                // Si la canción cambió, eliminamos la ANTERIOR de la lista
+                if (lastTrackUri.current && currentTrackUri !== lastTrackUri.current) {
                     setSongLists(lists => {
                         let changed = false;
                         const newLists = JSON.parse(JSON.stringify(lists));
                         for (const listId in newLists) {
-                            const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
+                            const index = newLists[listId].findIndex(t => t.uri === lastTrackUri.current);
                             if (index > -1) {
                                 newLists[listId].splice(index, 1);
                                 changed = true;
@@ -227,8 +242,10 @@ function App() {
                         }
                         return changed ? newLists : lists;
                     });
-                    lastTrackUri.current = currentTrackUri;
                 }
+
+                lastTrackUri.current = currentTrackUri;
+
             } catch (error) {
                 console.error("Error rastreando:", error);
                 stopPlaybackTracker();
@@ -245,6 +262,8 @@ function App() {
                 const state = await fetchWebApi('v1/me/player', 'GET');
                 if (state && state.is_playing && state.item) {
                     isPlayingFromApp.current = true;
+                    // Inicializamos lastTrackUri con la canción actual para que no se borre inmediatamente
+                    lastTrackUri.current = state.item.uri;
                     startPlaybackTracker();
                 }
             } catch (error) {
@@ -273,10 +292,43 @@ function App() {
         }
     }, [fetchWebApi]);
 
+    const regenerateQueue = async (newLists) => {
+        try {
+            const state = await fetchWebApi('v1/me/player', 'GET');
+            if (!state || !state.is_playing || !state.item) return;
+
+            const currentTrackUri = state.item.uri;
+            const progressMs = state.progress_ms;
+
+            const fullQueue = getRoundRobinQueue(newLists);
+            const currentIndex = fullQueue.findIndex(uri => uri === currentTrackUri);
+
+            if (currentIndex !== -1) {
+                // La canción actual está en la nueva cola.
+                // Reproducimos el RESTO de la cola a partir de esta canción para actualizar el orden futuro.
+                const newQueue = fullQueue.slice(currentIndex);
+
+                // Incluimos la canción actual para mantener la continuidad (con un pequeño salto)
+                await fetchWebApi('v1/me/player/play', 'PUT', {
+                    uris: newQueue,
+                    position_ms: progressMs
+                });
+                console.log('Cola regenerada y sincronizada.');
+            } else {
+                console.log('La canción actual no está en las listas, no se puede sincronizar la cola perfectamente.');
+            }
+        } catch (error) {
+            console.error('Error regenerando la cola:', error);
+        }
+    };
+
     const addSongToList = async (track) => {
         const listNumber = prompt(`¿A qué lista quieres agregar "${track.name}"?\n(1, 2, o 3)`);
         if (['1', '2', '3'].includes(listNumber)) {
             const listId = `list-${listNumber}`;
+
+            let updatedLists = {};
+            let added = false;
 
             // Actualizar estado local
             setSongLists(lists => {
@@ -285,22 +337,16 @@ function App() {
                     return lists;
                 }
                 const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
-                return { ...lists, [listId]: [...lists[listId], newTrack] };
+                updatedLists = { ...lists, [listId]: [...lists[listId], newTrack] };
+                added = true;
+                return updatedLists;
             });
 
-            // Lógica de reproducción sin cortes
-            try {
-                const state = await fetchWebApi('v1/me/player', 'GET');
-                if (state && state.is_playing) {
-                    // Si ya está reproduciendo, agregamos a la cola
-                    await fetchWebApi(`v1/me/player/queue?uri=${track.uri}`, 'POST');
-                    console.log('Canción agregada a la cola de Spotify.');
-                } else {
-                    // Si no, NO iniciamos la mezcla automáticamente, solo agregamos a la lista
-                    console.log('Canción agregada a la lista. Reproducción no iniciada.');
-                }
-            } catch (error) {
-                console.error('Error al gestionar la reproducción:', error);
+            // Si se agregó correctamente, intentamos actualizar la cola
+            if (added && isPlayingFromApp.current) {
+                // Esperamos un momento para que el estado se asiente (aunque usamos updatedLists localmente)
+                // y luego regeneramos la cola
+                await regenerateQueue(updatedLists);
             }
         }
         setSearchQuery('');
@@ -308,20 +354,17 @@ function App() {
     };
 
     const handlePlayMix = async () => {
-        const list1 = songLists['list-1'] || [];
-        const list2 = songLists['list-2'] || [];
-        const list3 = songLists['list-3'] || [];
-        const maxLength = Math.max(list1.length, list2.length, list3.length);
-        const mixedQueue = [];
-        for (let i = 0; i < maxLength; i++) {
-            if (list1[i]) mixedQueue.push(list1[i].uri);
-            if (list2[i]) mixedQueue.push(list2[i].uri);
-            if (list3[i]) mixedQueue.push(list3[i].uri);
-        }
+        const mixedQueue = getRoundRobinQueue(songLists);
         if (mixedQueue.length === 0) { alert("No hay canciones para reproducir."); return; }
         try {
             await fetchWebApi('v1/me/player/play', 'PUT', { uris: mixedQueue });
             isPlayingFromApp.current = true;
+
+            // Al iniciar, seteamos la primera canción como lastTrackUri para evitar borrado prematuro
+            if (mixedQueue.length > 0) {
+                lastTrackUri.current = mixedQueue[0];
+            }
+
             startPlaybackTracker();
         } catch (error) {
             console.error("Error al reproducir:", error);
@@ -332,7 +375,6 @@ function App() {
     const handleSort = useCallback(({ fromListId, toListId, oldIndex, newIndex }) => {
         setSongLists(currentLists => {
             if (!currentLists[fromListId] || !currentLists[toListId]) {
-                console.error('Error: Lista no encontrada', { fromListId, toListId });
                 return currentLists;
             }
             const newLists = JSON.parse(JSON.stringify(currentLists));
