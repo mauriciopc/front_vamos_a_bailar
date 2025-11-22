@@ -281,7 +281,7 @@ body {
     font-size: 1.2rem;
     border: none;
     cursor: pointer;
-    text-transform: uppercase;
+    text-align: center;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
     border: 1px solid #333;
 }
@@ -477,9 +477,31 @@ body {
     border: none;
     cursor: pointer;
     text-transform: uppercase;
-    letter-spacing: 0.1em;
-    box-shadow: 0 8px 20px rgba(29, 185, 84, 0.4);
-    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border: 1px solid #333;
+}
+
+
+.play-button-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 3rem;
+    padding-bottom: 2rem;
+}
+
+.play-button {
+    background-color: var(--accent-color);
+    color: #000000;
+    font-weight: 800;
+    padding: 1.2rem 3.5rem;
+    border-radius: 500px;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
 }
 
 .play-button:hover {
