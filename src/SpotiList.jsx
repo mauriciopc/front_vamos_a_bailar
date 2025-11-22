@@ -295,12 +295,18 @@ function App() {
     const regenerateQueue = async (newLists) => {
         try {
             const state = await fetchWebApi('v1/me/player', 'GET');
-            if (!state || !state.is_playing || !state.item) return;
+            if (!state || !state.is_playing || !state.item) {
+                console.log('No se está reproduciendo nada, no se regenera la cola.');
+                return;
+            }
 
             const currentTrackUri = state.item.uri;
             const progressMs = state.progress_ms;
 
             const fullQueue = getRoundRobinQueue(newLists);
+            console.log('Cola calculada:', fullQueue);
+            console.log('Canción actual:', currentTrackUri);
+
             const currentIndex = fullQueue.findIndex(uri => uri === currentTrackUri);
 
             if (currentIndex !== -1) {
@@ -345,10 +351,9 @@ function App() {
             // Si se agregó correctamente, intentamos actualizar la cola
             if (added) {
                 try {
-                    const state = await fetchWebApi('v1/me/player', 'GET');
-                    if (state && state.is_playing) {
-                        await regenerateQueue(updatedLists);
-                    }
+                    // Esperamos un poco para asegurar que el estado se haya asentado si es necesario, 
+                    // aunque aquí pasamos updatedLists explícitamente.
+                    await regenerateQueue(updatedLists);
                 } catch (e) {
                     console.error("Error verificando estado para regenerar cola:", e);
                 }
@@ -393,12 +398,11 @@ function App() {
 
         setSongLists(newLists);
 
-        if (isPlayingFromApp.current) {
-            try {
-                await regenerateQueue(newLists);
-            } catch (e) {
-                console.error("Error al regenerar la cola después de ordenar:", e);
-            }
+        // Intentamos regenerar la cola SIEMPRE, regenerateQueue verificará si está reproduciendo
+        try {
+            await regenerateQueue(newLists);
+        } catch (e) {
+            console.error("Error al regenerar la cola después de ordenar:", e);
         }
     };
 
