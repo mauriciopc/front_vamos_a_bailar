@@ -284,24 +284,31 @@ function App() {
                     }
                 }
 
-                console.log('📋 Nueva cola desde siguiente lista:', newQueue.length, 'canciones');
+                console.log('📋 Agregando a la cola:', newQueue.length, 'canciones en orden round-robin');
 
-                await fetchWebApi('v1/me/player/play', 'PUT', {
-                    uris: newQueue,
-                    position_ms: progressMs
-                });
-                console.log('✅ Cola actualizada manteniendo orden round-robin');
+                // Agregar canciones a la cola una por una sin interrumpir la reproducción
+                for (const uri of newQueue) {
+                    try {
+                        await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(uri)}`, 'POST');
+                    } catch (error) {
+                        console.error('Error agregando canción a la cola:', error);
+                    }
+                }
+                console.log('✅ Cola actualizada con', newQueue.length, 'canciones manteniendo orden round-robin');
             } else {
-                // La canción actual no está en ninguna lista (quizás fue eliminada o es externa)
+                // La canción actual no está en ninguna lista, agregar todo en round-robin
                 const fullQueue = getRoundRobinQueue(newLists);
-                const newQueue = [currentTrackUri, ...fullQueue];
-                console.log('📋 Canción actual no está en listas. Cola:', newQueue.length, 'canciones');
+                console.log('📋 Canción actual no en listas. Agregando', fullQueue.length, 'canciones');
 
-                await fetchWebApi('v1/me/player/play', 'PUT', {
-                    uris: newQueue,
-                    position_ms: progressMs
-                });
-                console.log('✅ Cola actualizada - Canción actual + listas agregadas después');
+                // Agregar canciones a la cola una por una
+                for (const uri of fullQueue) {
+                    try {
+                        await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(uri)}`, 'POST');
+                    } catch (error) {
+                        console.error('Error agregando canción a la cola:', error);
+                    }
+                }
+                console.log('✅ Cola actualizada con', fullQueue.length, 'canciones');
             }
         } catch (error) {
             console.error('❌ Error regenerando la cola:', error);
