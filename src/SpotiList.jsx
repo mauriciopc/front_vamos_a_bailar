@@ -24,11 +24,11 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
 
     useEffect(() => {
         if (window.Sortable && sortableRef.current) {
-            new window.Sortable(sortableRef.current, {
+            const sortable = new window.Sortable(sortableRef.current, {
                 group: 'shared',
                 animation: 150,
                 ghostClass: 'song-item-ghost',
-                delay: 150, // Delay to prevent accidental drags on touch
+                delay: 150,
                 delayOnTouchOnly: true,
                 onEnd: (evt) => {
                     const { from, to, oldIndex, newIndex } = evt;
@@ -40,13 +40,18 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
                     });
                 },
             });
+            return () => sortable.destroy();
         }
     }, [onSort]);
+
+    // Generamos una key única basada en el contenido de la lista para forzar a React
+    // a recrear el contenedor si cambia, evitando conflictos con SortableJS.
+    const listKey = songs.map(s => s.id).join(',');
 
     return (
         <div className="list-container">
             <h3>{listTitle}</h3>
-            <div id={listId} ref={sortableRef} className="song-list">
+            <div id={listId} ref={sortableRef} className="song-list" key={listKey}>
                 {songs.map(track => (
                     <SongItem
                         key={track.id}
@@ -291,9 +296,8 @@ function App() {
                     await fetchWebApi(`v1/me/player/queue?uri=${track.uri}`, 'POST');
                     console.log('Canción agregada a la cola de Spotify.');
                 } else {
-                    // Si no, iniciamos la mezcla
-                    console.log('Iniciando reproducción...');
-                    setTimeout(() => handlePlayMix(), 500);
+                    // Si no, NO iniciamos la mezcla automáticamente, solo agregamos a la lista
+                    console.log('Canción agregada a la lista. Reproducción no iniciada.');
                 }
             } catch (error) {
                 console.error('Error al gestionar la reproducción:', error);
