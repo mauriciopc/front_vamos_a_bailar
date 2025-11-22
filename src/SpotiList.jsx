@@ -28,6 +28,8 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
                 group: 'shared',
                 animation: 150,
                 ghostClass: 'song-item-ghost',
+                delay: 150, // Delay to prevent accidental drags on touch
+                delayOnTouchOnly: true,
                 onEnd: (evt) => {
                     const { from, to, oldIndex, newIndex } = evt;
                     onSort({
