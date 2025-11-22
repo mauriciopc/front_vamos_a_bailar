@@ -264,7 +264,7 @@ function App() {
             const data = await fetchWebApi(`v1/search?q=${encodeURIComponent(query)}&type=track&limit=5`, 'GET');
             if (data && data.tracks) setSearchResults(data.tracks.items);
         } catch (e) {
-            console.error(e)
+            console.error(e);
         }
     }, [fetchWebApi]);
 
@@ -284,17 +284,19 @@ function App() {
             });
 
             // Lógica de reproducción sin cortes
-            if (isPlayingFromApp.current) {
-                try {
-                    // Si ya está reproduciendo, solo agregamos a la cola de Spotify
+            try {
+                const state = await fetchWebApi('v1/me/player', 'GET');
+                if (state && state.is_playing) {
+                    // Si ya está reproduciendo, agregamos a la cola
                     await fetchWebApi(`v1/me/player/queue?uri=${track.uri}`, 'POST');
-                    console.log('Canción agregada a la cola sin cortes.');
-                } catch (error) {
-                    console.error('Error al agregar a la cola:', error);
+                    console.log('Canción agregada a la cola de Spotify.');
+                } else {
+                    // Si no, iniciamos la mezcla
+                    console.log('Iniciando reproducción...');
+                    setTimeout(() => handlePlayMix(), 500);
                 }
-            } else {
-                // Si no está reproduciendo, iniciamos la mezcla (con un pequeño delay para asegurar que el estado se actualice)
-                setTimeout(() => handlePlayMix(), 500);
+            } catch (error) {
+                console.error('Error al gestionar la reproducción:', error);
             }
         }
         setSearchQuery('');
@@ -318,15 +320,26 @@ function App() {
             isPlayingFromApp.current = true;
             startPlaybackTracker();
         } catch (error) {
-            alert("Error al reproducir. Asegúrate de tener Spotify abierto.");
+            console.error("Error al reproducir:", error);
+            alert("Error al reproducir. Asegúrate de tener Spotify abierto y activo.");
         }
     };
 
     const handleSort = useCallback(({ fromListId, toListId, oldIndex, newIndex }) => {
         setSongLists(currentLists => {
+            if (!currentLists[fromListId] || !currentLists[toListId]) {
+                console.error('Error: Lista no encontrada', { fromListId, toListId });
+                return currentLists;
+            }
             const newLists = JSON.parse(JSON.stringify(currentLists));
-            const [movedItem] = newLists[fromListId].splice(oldIndex, 1);
-            newLists[toListId].splice(newIndex, 0, movedItem);
+            const sourceList = newLists[fromListId];
+            const destList = newLists[toListId];
+
+            if (!sourceList || !destList) return currentLists;
+            if (oldIndex < 0 || oldIndex >= sourceList.length) return currentLists;
+
+            const [movedItem] = sourceList.splice(oldIndex, 1);
+            destList.splice(newIndex, 0, movedItem);
             return newLists;
         });
     }, []);
