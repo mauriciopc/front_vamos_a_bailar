@@ -56,7 +56,7 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
             });
             return () => sortable.destroy();
         }
-    }, [onSort, songs]); // Agregamos songs para asegurar reinicialización si cambia la lista
+    }, [onSort, songs]);
 
     const listKey = songs.map(s => s.id).join(',');
 
@@ -262,7 +262,6 @@ function App() {
                 const state = await fetchWebApi('v1/me/player', 'GET');
                 if (state && state.is_playing && state.item) {
                     isPlayingFromApp.current = true;
-                    // Inicializamos lastTrackUri con la canción actual para que no se borre inmediatamente
                     lastTrackUri.current = state.item.uri;
                     startPlaybackTracker();
                 }
@@ -304,27 +303,39 @@ function App() {
             const progressMs = state.progress_ms;
 
             const fullQueue = getRoundRobinQueue(newLists);
-            console.log('Cola calculada:', fullQueue);
+            console.log('Cola calculada (Round Robin):', fullQueue);
             console.log('Canción actual:', currentTrackUri);
+
+            if (fullQueue.length === 0) {
+                console.log('No hay canciones en las listas para agregar a la cola.');
+                return;
+            }
 
             const currentIndex = fullQueue.findIndex(uri => uri === currentTrackUri);
 
             if (currentIndex !== -1) {
                 // La canción actual está en la nueva cola.
-                // Reproducimos el RESTO de la cola a partir de esta canción para actualizar el orden futuro.
+                // Reproducimos desde la canción actual con toda la cola actualizada
                 const newQueue = fullQueue.slice(currentIndex);
 
-                // Incluimos la canción actual para mantener la continuidad (con un pequeño salto)
                 await fetchWebApi('v1/me/player/play', 'PUT', {
                     uris: newQueue,
                     position_ms: progressMs
                 });
-                console.log('Cola regenerada y sincronizada.');
+                console.log('✓ Cola actualizada - Canción actual encontrada en las listas');
             } else {
-                console.log('La canción actual no está en las listas, no se puede sincronizar la cola perfectamente.');
+                // La canción actual NO está en las listas
+                // Creamos una cola que incluye la canción actual + todas las de las listas
+                const newQueue = [currentTrackUri, ...fullQueue];
+
+                await fetchWebApi('v1/me/player/play', 'PUT', {
+                    uris: newQueue,
+                    position_ms: progressMs
+                });
+                console.log('✓ Cola actualizada - Canción actual + listas agregadas después');
             }
         } catch (error) {
-            console.error('Error regenerando la cola:', error);
+            console.error('❌ Error regenerando la cola:', error);
         }
     };
 
@@ -351,8 +362,6 @@ function App() {
             // Si se agregó correctamente, intentamos actualizar la cola
             if (added) {
                 try {
-                    // Esperamos un poco para asegurar que el estado se haya asentado si es necesario, 
-                    // aunque aquí pasamos updatedLists explícitamente.
                     await regenerateQueue(updatedLists);
                 } catch (e) {
                     console.error("Error verificando estado para regenerar cola:", e);
@@ -370,7 +379,6 @@ function App() {
             await fetchWebApi('v1/me/player/play', 'PUT', { uris: mixedQueue });
             isPlayingFromApp.current = true;
 
-            // Al iniciar, seteamos la primera canción como lastTrackUri para evitar borrado prematuro
             if (mixedQueue.length > 0) {
                 lastTrackUri.current = mixedQueue[0];
             }
