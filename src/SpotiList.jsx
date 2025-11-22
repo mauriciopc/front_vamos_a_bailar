@@ -343,10 +343,15 @@ function App() {
             });
 
             // Si se agregó correctamente, intentamos actualizar la cola
-            if (added && isPlayingFromApp.current) {
-                // Esperamos un momento para que el estado se asiente (aunque usamos updatedLists localmente)
-                // y luego regeneramos la cola
-                await regenerateQueue(updatedLists);
+            if (added) {
+                try {
+                    const state = await fetchWebApi('v1/me/player', 'GET');
+                    if (state && state.is_playing) {
+                        await regenerateQueue(updatedLists);
+                    }
+                } catch (e) {
+                    console.error("Error verificando estado para regenerar cola:", e);
+                }
             }
         }
         setSearchQuery('');
@@ -372,12 +377,13 @@ function App() {
         }
     };
 
-    const handleSort = useCallback(({ fromListId, toListId, oldIndex, newIndex }) => {
+    const handleSort = async ({ fromListId, toListId, oldIndex, newIndex }) => {
+        let newLists = {};
         setSongLists(currentLists => {
             if (!currentLists[fromListId] || !currentLists[toListId]) {
                 return currentLists;
             }
-            const newLists = JSON.parse(JSON.stringify(currentLists));
+            newLists = JSON.parse(JSON.stringify(currentLists));
             const sourceList = newLists[fromListId];
             const destList = newLists[toListId];
 
@@ -388,7 +394,16 @@ function App() {
             destList.splice(newIndex, 0, movedItem);
             return newLists;
         });
-    }, []);
+
+        // Regenerar la cola después de mover
+        if (isPlayingFromApp.current) {
+            try {
+                await regenerateQueue(newLists);
+            } catch (e) {
+                console.error("Error al regenerar la cola después de ordenar:", e);
+            }
+        }
+    };
 
     const handleRemove = useCallback((listId, trackId) => {
         setSongLists(currentLists => {
