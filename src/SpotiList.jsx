@@ -90,7 +90,7 @@ function App() {
     const lastTrackUri = useRef(null);
     const isPlayingFromApp = useRef(false);
     const regenerateQueueRef = useRef(null);
-    const currentRoundRobinPosition = useRef({ listIndex: 0, songIndex: 0 }); // Track position in round-robin
+    const nextListIndex = useRef(0); // 0=list-1, 1=list-2, 2=list-3
 
     const fetchWebApi = useCallback(async (endpoint, method, body) => {
         const currentToken = await getValidToken();
@@ -219,106 +219,39 @@ function App() {
         lastTrackUri.current = null;
     }, []);
 
-    const regenerateQueue = useCallback(async (newLists) => {
+    const addNextSongToQueue = useCallback(async () => {
         try {
-            console.log('🔍 Verificando estado de reproducción...');
-            const state = await fetchWebApi('v1/me/player', 'GET');
+            const listOrder = ['list-1', 'list-2', 'list-3'];
 
-            if (!state || !state.is_playing || !state.item) {
-                console.log('⏸️ No se está reproduciendo nada, no se regenera la cola.');
-                return;
-            }
+            // Intentar encontrar la siguiente canción en las próximas 3 listas
+            for (let attempt = 0; attempt < 3; attempt++) {
+                const currentIndex = (nextListIndex.current + attempt) % 3;
+                const listId = listOrder[currentIndex];
+                const list = songLists[listId];
 
-            const currentTrackUri = state.item.uri;
-            const progressMs = state.progress_ms;
+                if (list && list.length > 0 && list[0]) {
+                    // Agregar la primera canción de esta lista
+                    const nextSong = list[0];
+                    console.log(`✅ Agregando siguiente: ${nextSong.name} de ${listId}`);
 
-            // Identificar cuál canción está sonando y de qué lista viene
-            let currentListId = null;
-            let currentSongIndexInList = -1;
+                    await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
 
-            for (const listId in newLists) {
-                const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
-                if (index !== -1) {
-                    currentListId = listId;
-                    currentSongIndexInList = index;
-                    break;
+                    // Actualizar índice para la próxima vez
+                    nextListIndex.current = (currentIndex + 1) % 3;
+                    return;
                 }
             }
 
-            console.log('🎧 Canción actual:', currentTrackUri);
-            console.log('📍 Lista actual:', currentListId, 'índice:', currentSongIndexInList);
-
-            if (currentListId) {
-                // La canción actual está en una de las listas
-                // Determinar cuál es la SIGUIENTE lista en el round-robin
-                const listOrder = ['list-1', 'list-2', 'list-3'];
-                const currentListIndex = listOrder.indexOf(currentListId);
-
-                // Construir la cola desde la siguiente lista
-                const list1 = newLists['list-1'] || [];
-                const list2 = newLists['list-2'] || [];
-                const list3 = newLists['list-3'] || [];
-                const maxLength = Math.max(list1.length, list2.length, list3.length);
-
-                const newQueue = [];
-
-                // Empezar desde el índice actual de la canción
-                for (let i = currentSongIndexInList; i < maxLength; i++) {
-                    // Si estamos en el mismo índice que la canción actual, empezamos desde la SIGUIENTE lista
-                    const startListIndex = (i === currentSongIndexInList) ? (currentListIndex + 1) % 3 : 0;
-
-                    for (let j = 0; j < 3; j++) {
-                        const listIndex = (startListIndex + j) % 3;
-                        const listId = listOrder[listIndex];
-                        const list = newLists[listId];
-
-                        if (list[i]) {
-                            // Si es la canción actual, la incluimos para mantener la reproducción
-                            if (i === currentSongIndexInList && listId === currentListId) {
-                                newQueue.push(list[i].uri);
-                            } else if (!(i === currentSongIndexInList && listId === currentListId)) {
-                                // Para todas las demás canciones
-                                newQueue.push(list[i].uri);
-                            }
-                        }
-                    }
-                }
-
-                console.log('📋 Agregando a la cola:', newQueue.length, 'canciones en orden round-robin');
-
-                // Agregar canciones a la cola una por una sin interrumpir la reproducción
-                for (const uri of newQueue) {
-                    try {
-                        await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(uri)}`, 'POST');
-                    } catch (error) {
-                        console.error('Error agregando canción a la cola:', error);
-                    }
-                }
-                console.log('✅ Cola actualizada con', newQueue.length, 'canciones manteniendo orden round-robin');
-            } else {
-                // La canción actual no está en ninguna lista, agregar todo en round-robin
-                const fullQueue = getRoundRobinQueue(newLists);
-                console.log('📋 Canción actual no en listas. Agregando', fullQueue.length, 'canciones');
-
-                // Agregar canciones a la cola una por una
-                for (const uri of fullQueue) {
-                    try {
-                        await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(uri)}`, 'POST');
-                    } catch (error) {
-                        console.error('Error agregando canción a la cola:', error);
-                    }
-                }
-                console.log('✅ Cola actualizada con', fullQueue.length, 'canciones');
-            }
+            console.log('⚠️ No hay más canciones en ninguna lista');
         } catch (error) {
-            console.error('❌ Error regenerando la cola:', error);
+            console.error('❌ Error agregando siguiente canción:', error);
         }
-    }, [fetchWebApi]);
+    }, [songLists, fetchWebApi]);
 
     // Guardamos la referencia actualizada
     useEffect(() => {
-        regenerateQueueRef.current = regenerateQueue;
-    }, [regenerateQueue]);
+        regenerateQueueRef.current = addNextSongToQueue;
+    }, [addNextSongToQueue]);
 
     const startPlaybackTracker = useCallback(() => {
         stopPlaybackTracker();
@@ -355,9 +288,9 @@ function App() {
                     // Si eliminamos una canción, regeneramos la cola
                     if (updatedLists && regenerateQueueRef.current) {
                         try {
-                            await regenerateQueueRef.current(updatedLists);
+                            await regenerateQueueRef.current();
                         } catch (error) {
-                            console.error('Error regenerando cola después de eliminar canción:', error);
+                            console.error('Error agregando siguiente canción:', error);
                         }
                     }
                 }
@@ -447,6 +380,9 @@ function App() {
             if (mixedQueue.length > 0) {
                 lastTrackUri.current = mixedQueue[0];
             }
+
+            // Resetear índice - la primera canción es de list-1, así que la siguiente es list-2 (índice 1)
+            nextListIndex.current = 1;
 
             startPlaybackTracker();
         } catch (error) {
