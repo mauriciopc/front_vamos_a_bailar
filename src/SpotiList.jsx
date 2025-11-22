@@ -86,11 +86,19 @@ function App() {
     const [nowPlaying, setNowPlaying] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Refs para mantener estado actualizado en callbacks
+    const songListsRef = useRef(songLists);
     const playbackIntervalId = useRef(null);
     const lastTrackUri = useRef(null);
     const isPlayingFromApp = useRef(false);
     const regenerateQueueRef = useRef(null);
     const nextListIndex = useRef(0); // 0=list-1, 1=list-2, 2=list-3
+
+    // Actualizar ref cuando cambia el estado
+    useEffect(() => {
+        songListsRef.current = songLists;
+        localStorage.setItem('spotify_song_lists', JSON.stringify(songLists));
+    }, [songLists]);
 
     const fetchWebApi = useCallback(async (endpoint, method, body) => {
         const currentToken = await getValidToken();
@@ -221,18 +229,22 @@ function App() {
 
     const addNextSongToQueue = useCallback(async () => {
         try {
+            // USAR REF PARA OBTENER ESTADO ACTUAL
+            const currentLists = songListsRef.current;
             const listOrder = ['list-1', 'list-2', 'list-3'];
+
+            console.log('🔔 Buscando siguiente canción. Índice actual:', nextListIndex.current);
 
             // Intentar encontrar la siguiente canción en las próximas 3 listas
             for (let attempt = 0; attempt < 3; attempt++) {
                 const currentIndex = (nextListIndex.current + attempt) % 3;
                 const listId = listOrder[currentIndex];
-                const list = songLists[listId];
+                const list = currentLists[listId];
 
                 if (list && list.length > 0 && list[0]) {
                     // Agregar la primera canción de esta lista
                     const nextSong = list[0];
-                    console.log(`✅ Agregando siguiente: ${nextSong.name} de ${listId}`);
+                    console.log(`✅ Agregando siguiente: ${nextSong.name} de ${listId} (URI: ${nextSong.uri})`);
 
                     await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
 
@@ -246,7 +258,7 @@ function App() {
         } catch (error) {
             console.error('❌ Error agregando siguiente canción:', error);
         }
-    }, [songLists, fetchWebApi]);
+    }, [fetchWebApi]); // No depende de songLists porque usa el Ref
 
     // Guardamos la referencia actualizada
     useEffect(() => {
@@ -265,33 +277,44 @@ function App() {
 
                 // Si la canción cambió (nueva canción empezó), eliminamos la ACTUAL inmediatamente
                 if (lastTrackUri.current && currentTrackUri !== lastTrackUri.current) {
+
+                    // Actualizar listas eliminando la canción que acaba de terminar (la anterior)
+                    // NOTA: Como no sabemos cuál era la anterior con certeza solo con URI si hay repetidas,
+                    // asumimos que debemos eliminar la canción que estaba al principio de la lista que tocaba.
+                    // PERO, para simplificar y ser robustos:
+                    // Buscamos la canción QUE ACABA DE EMPEZAR en las listas y la eliminamos para que no se repita
+
                     let updatedLists = null;
 
                     setSongLists(lists => {
                         let changed = false;
                         const newLists = JSON.parse(JSON.stringify(lists));
 
-                        // Eliminamos la canción ACTUAL (la que acaba de empezar)
+                        // Eliminamos la canción ACTUAL (la que acaba de empezar) de las listas locales
+                        // para que no vuelva a sonar inmediatamente
                         for (const listId in newLists) {
                             const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
                             if (index > -1) {
                                 newLists[listId].splice(index, 1);
                                 changed = true;
                                 updatedLists = newLists;
-                                console.log(`🗑️ Canción eliminada inmediatamente de ${listId}`);
+                                console.log(`🗑️ Canción actual eliminada de ${listId}`);
                                 break;
                             }
                         }
                         return changed ? newLists : lists;
                     });
 
-                    // Si eliminamos una canción, regeneramos la cola
-                    if (updatedLists && regenerateQueueRef.current) {
-                        try {
-                            await regenerateQueueRef.current();
-                        } catch (error) {
-                            console.error('Error agregando siguiente canción:', error);
-                        }
+                    // Si eliminamos una canción (o simplemente cambió la canción), agregamos la SIGUIENTE a la cola
+                    if (regenerateQueueRef.current) {
+                        // Esperamos un momento para asegurar que el estado se actualizó (aunque usamos Ref en la función)
+                        setTimeout(async () => {
+                            try {
+                                await regenerateQueueRef.current();
+                            } catch (error) {
+                                console.error('Error agregando siguiente canción:', error);
+                            }
+                        }, 500);
                     }
                 }
 
@@ -322,11 +345,6 @@ function App() {
         };
         reconnect();
     }, [accessToken, fetchWebApi, startPlaybackTracker]);
-
-    // Guardar listas en local Storage cuando cambien
-    useEffect(() => {
-        localStorage.setItem('spotify_song_lists', JSON.stringify(songLists));
-    }, [songLists]);
 
     const handleSearch = useCallback(async (query) => {
         setSearchQuery(query);
