@@ -183,50 +183,6 @@ function App() {
         window.location = 'https://accounts.spotify.com/authorize?' + args;
     };
 
-    useEffect(() => {
-        const savedLists = localStorage.getItem('spotify_song_lists');
-        if (savedLists) {
-            setSongLists(JSON.parse(savedLists));
-        }
-        const handleAuth = async () => {
-            const params = new URLSearchParams(window.location.search);
-            const code = params.get('code');
-            if (code) {
-                const codeVerifier = localStorage.getItem('code_verifier');
-                try {
-                    const response = await fetch('https://accounts.spotify.com/api/token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            client_id: clientId, grant_type: 'authorization_code', code, redirect_uri: redirectUri, code_verifier: codeVerifier,
-                        }),
-                    });
-                    if (!response.ok) throw new Error('HTTP status ' + response.status);
-                    const data = await response.json();
-                    const expiryTime = Date.now() + data.expires_in * 1000;
-                    localStorage.setItem('spotify_access_token', data.access_token);
-                    localStorage.setItem('spotify_token_expiry', expiryTime.toString());
-                    localStorage.setItem('spotify_refresh_token', data.refresh_token);
-                    setAccessToken(data.access_token);
-                    window.history.pushState({}, '', redirectUri);
-                } catch (error) {
-                    console.error('Error al obtener token inicial:', error);
-                }
-            } else {
-                const token = await getValidToken();
-                if (token) setAccessToken(token);
-            }
-        };
-        handleAuth();
-    }, [getValidToken]);
-
-    const stopPlaybackTracker = useCallback(() => {
-        clearInterval(playbackIntervalId.current);
-        playbackIntervalId.current = null;
-        isPlayingFromApp.current = false;
-        lastTrackUri.current = null;
-    }, []);
-
     const addNextSongToQueue = useCallback(async () => {
         try {
             // USAR REF PARA OBTENER ESTADO ACTUAL
