@@ -90,6 +90,7 @@ function App() {
     const lastTrackUri = useRef(null);
     const isPlayingFromApp = useRef(false);
     const regenerateQueueRef = useRef(null);
+    const currentRoundRobinPosition = useRef({ listIndex: 0, songIndex: 0 }); // Track position in round-robin
 
     const fetchWebApi = useCallback(async (endpoint, method, body) => {
         const currentToken = await getValidToken();
@@ -231,28 +232,68 @@ function App() {
             const currentTrackUri = state.item.uri;
             const progressMs = state.progress_ms;
 
-            const fullQueue = getRoundRobinQueue(newLists);
-            console.log('🎵 Cola calculada (Round Robin):', fullQueue.length, 'canciones');
-            console.log('🎧 Canción actual:', currentTrackUri);
+            // Identificar cuál canción está sonando y de qué lista viene
+            let currentListId = null;
+            let currentSongIndexInList = -1;
 
-            if (fullQueue.length === 0) {
-                console.log('⚠️ No hay canciones en las listas para agregar a la cola.');
-                return;
+            for (const listId in newLists) {
+                const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
+                if (index !== -1) {
+                    currentListId = listId;
+                    currentSongIndexInList = index;
+                    break;
+                }
             }
 
-            const currentIndex = fullQueue.findIndex(uri => uri === currentTrackUri);
-            console.log('📍 Índice de canción actual en cola:', currentIndex);
+            console.log('🎧 Canción actual:', currentTrackUri);
+            console.log('📍 Lista actual:', currentListId, 'índice:', currentSongIndexInList);
 
-            if (currentIndex !== -1) {
-                const newQueue = fullQueue.slice(currentIndex);
-                console.log('📋 Actualizando cola desde canción actual:', newQueue.length, 'canciones');
+            if (currentListId) {
+                // La canción actual está en una de las listas
+                // Determinar cuál es la SIGUIENTE lista en el round-robin
+                const listOrder = ['list-1', 'list-2', 'list-3'];
+                const currentListIndex = listOrder.indexOf(currentListId);
+
+                // Construir la cola desde la siguiente lista
+                const list1 = newLists['list-1'] || [];
+                const list2 = newLists['list-2'] || [];
+                const list3 = newLists['list-3'] || [];
+                const maxLength = Math.max(list1.length, list2.length, list3.length);
+
+                const newQueue = [];
+
+                // Empezar desde el índice actual de la canción
+                for (let i = currentSongIndexInList; i < maxLength; i++) {
+                    // Si estamos en el mismo índice que la canción actual, empezamos desde la SIGUIENTE lista
+                    const startListIndex = (i === currentSongIndexInList) ? (currentListIndex + 1) % 3 : 0;
+
+                    for (let j = 0; j < 3; j++) {
+                        const listIndex = (startListIndex + j) % 3;
+                        const listId = listOrder[listIndex];
+                        const list = newLists[listId];
+
+                        if (list[i]) {
+                            // Si es la canción actual, la incluimos para mantener la reproducción
+                            if (i === currentSongIndexInList && listId === currentListId) {
+                                newQueue.push(list[i].uri);
+                            } else if (!(i === currentSongIndexInList && listId === currentListId)) {
+                                // Para todas las demás canciones
+                                newQueue.push(list[i].uri);
+                            }
+                        }
+                    }
+                }
+
+                console.log('📋 Nueva cola desde siguiente lista:', newQueue.length, 'canciones');
 
                 await fetchWebApi('v1/me/player/play', 'PUT', {
                     uris: newQueue,
                     position_ms: progressMs
                 });
-                console.log('✅ Cola actualizada - Canción actual encontrada en las listas');
+                console.log('✅ Cola actualizada manteniendo orden round-robin');
             } else {
+                // La canción actual no está en ninguna lista (quizás fue eliminada o es externa)
+                const fullQueue = getRoundRobinQueue(newLists);
                 const newQueue = [currentTrackUri, ...fullQueue];
                 console.log('📋 Canción actual no está en listas. Cola:', newQueue.length, 'canciones');
 
