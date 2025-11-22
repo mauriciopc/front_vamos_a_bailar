@@ -220,9 +220,11 @@ function App() {
 
     const regenerateQueue = useCallback(async (newLists) => {
         try {
+            console.log('🔍 Verificando estado de reproducción...');
             const state = await fetchWebApi('v1/me/player', 'GET');
+
             if (!state || !state.is_playing || !state.item) {
-                console.log('No se está reproduciendo nada, no se regenera la cola.');
+                console.log('⏸️ No se está reproduciendo nada, no se regenera la cola.');
                 return;
             }
 
@@ -230,32 +232,35 @@ function App() {
             const progressMs = state.progress_ms;
 
             const fullQueue = getRoundRobinQueue(newLists);
-            console.log('Cola calculada (Round Robin):', fullQueue);
-            console.log('Canción actual:', currentTrackUri);
+            console.log('🎵 Cola calculada (Round Robin):', fullQueue.length, 'canciones');
+            console.log('🎧 Canción actual:', currentTrackUri);
 
             if (fullQueue.length === 0) {
-                console.log('No hay canciones en las listas para agregar a la cola.');
+                console.log('⚠️ No hay canciones en las listas para agregar a la cola.');
                 return;
             }
 
             const currentIndex = fullQueue.findIndex(uri => uri === currentTrackUri);
+            console.log('📍 Índice de canción actual en cola:', currentIndex);
 
             if (currentIndex !== -1) {
                 const newQueue = fullQueue.slice(currentIndex);
+                console.log('📋 Actualizando cola desde canción actual:', newQueue.length, 'canciones');
 
                 await fetchWebApi('v1/me/player/play', 'PUT', {
                     uris: newQueue,
                     position_ms: progressMs
                 });
-                console.log('✓ Cola actualizada - Canción actual encontrada en las listas');
+                console.log('✅ Cola actualizada - Canción actual encontrada en las listas');
             } else {
                 const newQueue = [currentTrackUri, ...fullQueue];
+                console.log('📋 Canción actual no está en listas. Cola:', newQueue.length, 'canciones');
 
                 await fetchWebApi('v1/me/player/play', 'PUT', {
                     uris: newQueue,
                     position_ms: progressMs
                 });
-                console.log('✓ Cola actualizada - Canción actual + listas agregadas después');
+                console.log('✅ Cola actualizada - Canción actual + listas agregadas después');
             }
         } catch (error) {
             console.error('❌ Error regenerando la cola:', error);
@@ -364,6 +369,8 @@ function App() {
             let updatedLists = {};
             let added = false;
 
+            console.log('🎵 Intentando agregar canción:', track.name);
+
             // Actualizar estado local
             setSongLists(lists => {
                 if (lists[listId].some(t => t.id === track.id)) {
@@ -373,16 +380,19 @@ function App() {
                 const newTrack = { id: track.id, name: track.name, artist: track.artists[0].name, uri: track.uri };
                 updatedLists = { ...lists, [listId]: [...lists[listId], newTrack] };
                 added = true;
+                console.log('📝 Canción agregada a la lista local');
                 return updatedLists;
             });
 
-            // Si se agregó correctamente, actualizar la cola
+            // Si se agregó correctamente, actualizar la cola de Spotify
             if (added) {
+                console.log('🔄 Iniciando actualización de cola en Spotify...');
+
                 try {
                     await regenerateQueue(updatedLists);
-                    console.log('✅ Canción agregada y cola actualizada');
+                    console.log('✅ Proceso de actualización completado');
                 } catch (e) {
-                    console.error("Error al regenerar cola después de agregar:", e);
+                    console.error("❌ Error al actualizar cola de Spotify:", e);
                 }
             }
         }
