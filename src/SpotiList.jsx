@@ -17,7 +17,7 @@ const SongItem = ({ track, listId, onRemove }) => (
 );
 
 // --- Componente SongList ---
-const SongList = ({ listId, songs, onSort, onRemove }) => {
+const SongList = ({ listId, songs = [], onSort, onRemove }) => {
     const listTitle = `Lista ${listId.split('-')[1]}`;
     const sortableRef = useRef(null);
 
@@ -43,13 +43,14 @@ const SongList = ({ listId, songs, onSort, onRemove }) => {
         }
     }, [onSort, songs]);
 
-    const listKey = songs.map(s => s.id).join(',');
+    const safeSongs = Array.isArray(songs) ? songs : [];
+    const listKey = safeSongs.map(s => s.id).join(',');
 
     return (
         <div className="list-container">
             <h3>{listTitle}</h3>
             <div id={listId} ref={sortableRef} className="song-list" key={listKey}>
-                {songs.map(track => (
+                {safeSongs.map(track => (
                     <SongItem
                         key={track.id}
                         track={track}
@@ -79,6 +80,9 @@ function App() {
     const regenerateQueueRef = useRef(null);
     const nextListIndex = useRef(0); // 0=list-1, 1=list-2, 2=list-3
 
+    // Set para rastrear canciones ya encoladas y evitar duplicados
+    const queuedSongs = useRef(new Set());
+
     // Actualizar ref cuando cambia el estado
     useEffect(() => {
         songListsRef.current = songLists;
@@ -90,7 +94,15 @@ function App() {
         const savedLists = localStorage.getItem('spotify_song_lists');
         if (savedLists) {
             try {
-                setSongLists(JSON.parse(savedLists));
+                const parsed = JSON.parse(savedLists);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    const safeLists = {
+                        'list-1': Array.isArray(parsed['list-1']) ? parsed['list-1'] : [],
+                        'list-2': Array.isArray(parsed['list-2']) ? parsed['list-2'] : [],
+                        'list-3': Array.isArray(parsed['list-3']) ? parsed['list-3'] : [],
+                    };
+                    setSongLists(safeLists);
+                }
             } catch (e) {
                 console.error("Error parsing saved lists", e);
             }
@@ -144,7 +156,15 @@ function App() {
             body: JSON.stringify(body)
         });
         if (res.ok) {
-            return res.status === 204 ? null : await res.json();
+            // Manejar 204 No Content explícitamente
+            if (res.status === 204) return null;
+            // Intentar parsear JSON, si falla devolver null (para evitar errores de sintaxis)
+            try {
+                return await res.json();
+            } catch (e) {
+                console.warn("Respuesta no es JSON válido, pero status ok:", res.status);
+                return null;
+            }
         } else {
             const errorText = await res.text();
             console.error('Error con la API de Spotify:', res.status, errorText);
@@ -198,20 +218,38 @@ function App() {
 
                 if (list && list.length > 0 && list[0]) {
                     const nextSong = list[0];
-                    console.log(`✅ Agregando a cola: ${nextSong.name} de ${listId}`);
+                    const uniqueId = `${listId}-${nextSong.id}`;
 
-                    await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
-                    foundSong = true;
+                    // Verificar si ya está encolada para evitar duplicados
+                    if (!queuedSongs.current.has(uniqueId)) {
+                        console.log(`✅ Agregando a cola: ${nextSong.name} de ${listId}`);
+                        await fetchWebApi(`v1/me/player/queue?uri=${encodeURIComponent(nextSong.uri)}`, 'POST');
+
+                        // Marcar como encolada
+                        queuedSongs.current.add(uniqueId);
+                        foundSong = true;
+                    } else {
+                        console.log(`⚠️ ${nextSong.name} ya fue enviada a la cola. Esperando que se reproduzca.`);
+                        // Si ya está encolada, consideramos que "encontramos" canción para no saltar turno innecesariamente,
+                        // o podríamos saltar turno? Mejor NO saltar turno, esperar a que se reproduzca.
+                        // Pero si devolvemos true, el bucle termina.
+                        foundSong = true;
+                    }
                 } else {
                     console.log(`⚠️ ${listId} vacía.`);
                 }
 
-                // Avanzar turno
+                // Avanzar turno SIEMPRE (para mantener el round robin)
+                // NOTA: Si encontramos una canción (ya sea nueva o ya encolada), avanzamos el turno para la PRÓXIMA vez.
+                // Pero si ya estaba encolada, no queremos avanzar el turno "real" de reproducción, 
+                // queremos que esa canción suene.
+                // Sin embargo, `nextListIndex` indica DE DÓNDE sacar la SIGUIENTE canción.
+                // Si sacamos una de L1, el siguiente debe ser L2.
                 nextListIndex.current = (currentIndex + 1) % 3;
                 attempts++;
             }
 
-            if (!foundSong) console.log('⚠️ Todas las listas vacías.');
+            if (!foundSong) console.log('⚠️ Todas las listas vacías o ya encoladas.');
 
         } catch (error) {
             console.error('❌ Error agregando a cola:', error);
@@ -244,10 +282,12 @@ function App() {
                         const newLists = JSON.parse(JSON.stringify(lists));
 
                         for (const listId in newLists) {
-                            // Buscamos si la canción actual está al principio de alguna lista
-                            // (Debería estarlo si respetamos el orden)
                             const index = newLists[listId].findIndex(t => t.uri === currentTrackUri);
                             if (index > -1) {
+                                // Eliminar del Set de encoladas también
+                                const song = newLists[listId][index];
+                                queuedSongs.current.delete(`${listId}-${song.id}`);
+
                                 newLists[listId].splice(index, 1);
                                 changed = true;
                                 console.log(`🗑️ Eliminada ${state.item.name} de ${listId}`);
@@ -363,7 +403,6 @@ function App() {
             // 2. Eliminar la canción inicial de la lista local
             setSongLists(prev => {
                 const newLists = { ...prev };
-                // Aseguramos que eliminamos la correcta
                 if (newLists[startListId].length > 0 && newLists[startListId][0].uri === firstSong.uri) {
                     newLists[startListId] = newLists[startListId].slice(1);
                 }
@@ -372,6 +411,9 @@ function App() {
 
             // 3. Configurar turno para la SIGUIENTE lista
             nextListIndex.current = (startIndex + 1) % 3;
+
+            // Limpiar set de encoladas al iniciar nueva mezcla
+            queuedSongs.current.clear();
 
             // 4. Iniciar tracker
             startPlaybackTracker();
