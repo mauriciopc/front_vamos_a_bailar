@@ -1,4 +1,4 @@
-import { useState,useEffect} from 'react'
+import { useState, useEffect } from 'react'
 import axios from 'axios';
 import './App.css'
 
@@ -16,13 +16,13 @@ function App() {
     const obtenerDatos = async () => {
       try {
         const res = await axios.get('https://v53e853z8a.execute-api.us-east-2.amazonaws.com/eventos');
-        if(res.data) {
+        if (res.data) {
           res.data.map(pagina => {
             pagina['eventos'].map(evento => {
               listaEventosAux.push(evento);
             })
           })
-         }
+        }
 
         if (listaEventosAux && listaEventosAux.length > 0) {
           const listEventosOrdenados = [...listaEventosAux].sort((a, b) => {
@@ -48,7 +48,7 @@ function App() {
         <div className='header-text'>
           <span>VAMOS A BAILAR!</span>
         </div>
-        <img className='banner' src="banner.jpg"/>
+        <img className='banner' src="banner.png" />
       </div>
 
       <div className="main-body">
@@ -69,17 +69,17 @@ function App() {
               </div>
             ))
           }
-          
+
         </div>
       </div>
       <div className="footer">
         <p>Encuentra más eventos y clases de baile en:</p>
         <br />
-        <img src="dance_spot.png" alt="dace_spot" width={200}/>
+        <img src="dance_spot.png" alt="dace_spot" width={200} />
         <p>DANCE SPOT</p>
         <br />
         <a href="https://play.google.com/store/apps/details?id=com.jorssmx.dancespot">
-          <img src="google_play.svg" alt="google_play" width={200}/>
+          <img src="google_play.svg" alt="google_play" width={200} />
         </a>
       </div>
     </div>
