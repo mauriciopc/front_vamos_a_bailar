@@ -109,6 +109,48 @@ function App() {
         }
     }, []);
 
+    // Manejar el código de autorización al regresar de Spotify
+    useEffect(() => {
+        const args = new URLSearchParams(window.location.search);
+        const code = args.get('code');
+
+        if (code) {
+            const codeVerifier = localStorage.getItem('code_verifier');
+            const body = new URLSearchParams({
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: redirectUri,
+                client_id: clientId,
+                code_verifier: codeVerifier
+            });
+
+            fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('HTTP status ' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    localStorage.setItem('spotify_access_token', data.access_token);
+                    if (data.refresh_token) {
+                        localStorage.setItem('spotify_refresh_token', data.refresh_token);
+                    }
+                    const expiryTime = Date.now() + data.expires_in * 1000;
+                    localStorage.setItem('spotify_token_expiry', expiryTime.toString());
+
+                    setAccessToken(data.access_token);
+                    // Limpiar URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                })
+                .catch(error => {
+                    console.error('Error durante el intercambio de token:', error);
+                });
+        }
+    }, []);
+
     const getValidToken = useCallback(async () => {
         const expiry = localStorage.getItem('spotify_token_expiry');
         if (expiry && Date.now() < Number(expiry)) {
